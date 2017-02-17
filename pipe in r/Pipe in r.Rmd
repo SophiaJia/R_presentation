@@ -1,5 +1,5 @@
 ---
-title:    "Pipe in R"
+title:    "Pipes in R"
 subtitle: An Introduction to “magrittr” and "tidyverse"
 author:   Sophia Jia  (Jiax @ccf.org)
 output:   ioslides_presentation
@@ -10,27 +10,388 @@ date:     February 01, 2017
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-## R Markdown
+## Example
 
-This is an R Markdown presentation. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r, eval= FALSE, echo=TRUE}
+#Before Using Pipes
+subsets <- split(D, D$V1)
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document.
+SV2_1 <- split(subsets[[1]], subsets[[1]]$V2)
+NM_1 <- JS.uni(SV2_1[[1]], 'scensor','surv', 'g65' ,'T1 and NM1')
+NM_2 <- JS.uni(SV2_1[[2]], 'scensor','surv', 'g65' ,'T2 and NM1')
+NM_3 <- JS.uni(SV2_1[[3]], 'scensor','surv', 'g65' ,'T3 and NM1')
 
-## Slide with Bullets
+SV2_2 <- split(subsets[[2]], subsets[[2]]$V2)
+M_1 <- JS.uni(SV2_2[[1]], 'scensor','surv', 'g65' ,'T1 and NM2')
+M_2 <- JS.uni(SV2_2[[2]], 'scensor','surv', 'g65' ,'T2 and NM2')
+M_3 <- JS.uni(SV2_2[[3]], 'scensor','surv', 'g65' ,'T3 and NM2')
 
-- Bullet 1
-- Bullet 2
-- Bullet 3
-
-## Slide with R Output
-
-```{r cars, echo = TRUE}
-summary(cars)
+model <- rbind(NM_1, NM_2, NM_3, M_1, M_2, M_3)
 ```
 
-## Slide with Plot
+9 objects, 10 lines of code 
 
-```{r pressure}
-plot(pressure)
+## Example
+
+```{r, eval= FALSE, echo=TRUE}
+#After Using Pipes
+model <- D %>% 
+           filter(.$V2 %in% c(0,1), complete.cases(.$V1)) %>% 
+           split(list(.$v2, .$v1)) %>% 
+           map(~JS.uni(D = .,'scensor','surv', 'g65','T and M' ))%>%
+           do.call(rbind,.)
 ```
+
+1 object, 5 lines of code
+
+## Introduction
+
+* The %>% operatior 
+
+* Other tools from **'magrittr'**  (%$%, %T>% and %<>%)
+
+* When not to use the pipe operator
+
+* Core packages of **'tidyverse'**
+
+
+## The %>% operatior
+
+- Comes from the 'magrittr' package and introduced to 'dplyr' package
+
+![  ](1.png)
+
+
+- x %>% f== f(x)
+
+- x %>% f(arg=value) == f(x, arg=value)
+
+```{r, include=FALSE}
+library(magrittr)
+library(tidyverse)
+```
+
+```{r, eval= FALSE, echo=TRUE}
+mean(iris$Sepal.Length) 
+```
+
+```{r, echo=TRUE}
+iris$Sepal.Length %>% mean
+```
+
+## The %>% operatior 
+
+- What if the object is not the first agreement ?
+
+- . (dot)
+
+- y %>% f(x, .) == f(x, y) 
+
+- z %>% f(x, y, arg = .) is equivalent to f(x, y, arg = z)
+
+```{r, eval= FALSE, echo=TRUE}
+#Before
+summary(lm(Sepal.Length ~ Sepal.Width, data = iris))
+```
+
+```{r, eval= FALSE, echo=TRUE}
+#After
+iris %>% 
+     lm(Sepal.Length ~ Sepal.Width, data = .)  %>%
+     summary 
+```
+
+
+## The %>% operatior (check data)
+
+```{r, echo=TRUE}
+iris %>%
+  mutate(Sepal.Size=Sepal.Length*Sepal.Width,
+         Petal.Size=Petal.Length*Petal.Width) %>% # (head(5))
+  select(Sepal.Size,Petal.Size,Species) %>%
+  group_by(Species) %>%
+  do(arrange(.,desc(Sepal.Size+Petal.Size)) %>% head(3))
+```
+
+
+## The %T% operatior 
+
+
+![  ](2.png)
+
+
+- when use print(), plot(), save ()...
+
+- Returns the left-hand side instead of the right-hand side. 
+
+
+
+## The %T% operatior (Example)
+```{r, echo=TRUE, fig.height=3.5, fig.width=6}
+set.seed(1)
+ rnorm(200) %>% matrix(ncol = 2) %>%
+   plot %>% str
+```
+
+## The %T% operatior (Example)
+```{r, echo=TRUE, fig.height=3.5, fig.width=6}
+set.seed(1)
+rnorm(200) %>% matrix(ncol = 2) %T>%
+   plot %>% str
+```
+
+
+## The %$% operatior 
+![  ](3.png)
+
+
+- Working with functions that don't have a data frame based API
+
+- Base R funcation , for example, mean(), cor() ...
+
+- Explodes out the variables in a data frame 
+
+
+## The %$% operatior (Example)
+```{r , eval= FALSE, echo=TRUE}
+iris %>% 
+     lm(Sepal.Length ~ Sepal.Width, data = .)  
+```
+
+```{r, echo=TRUE}
+iris %$% 
+     lm(Sepal.Length ~ Sepal.Width)  
+```
+
+
+## The %<>% operatior 
+
+
+![  ](4.png)
+
+-  Replace your objects 
+
+- usage
+
+```{r , eval= FALSE, echo=TRUE}
+ iris$Sepal.Length %<>% sqrt
+```
+- replacement of 
+
+```{r, echo=TRUE}
+ iris$Sepal.Length <- iris$Sepal.Length %>% sqrt
+```
+
+## When not to Use the Pipe Operators
+* Multiple inputs or outputs 
+     +  check PipeR package
+
+* Longer steps 
+
+* Functions that use the current environment 
+     + assign()
+     + get()
+     + load()
+
+* Functions that use lazy evaluation 
+     + tryCatch()
+     + try() 
+     
+
+## tidyverse package
+
+* The tidyverse is a suite of tools to make managing data easier in to your R session
+
+* Install and load packages from the tidyverse in a single command.
+
+* Usage
+```{r , eval= FALSE, echo=TRUE}
+library(tidyverse)
+tidyverse_conflicts() #see conflicts
+tidyverse_update()    #check if all tidyverse packages are up-to-date 
+```
+
+## tidyverse package (core packages)
+
+* **ggplot2** : data visualisation.
+* **dplyr**   : data manipulation.
+* **tidyr**   : data tidying.
+* **readr**   : data import.
+* **purrr**   : functional programming.
+* **tibble**  : manipulating and printing data frames in R..
+     
+## tidyverse package(Other packages)   
+* **Data import**
+     + DBI,        for databases.
+     + haven,      for SPSS, SAS and Stata files.
+     + httr,       for web apis.
+     + jsonlite ,  for JSON.
+     + readxl,     for .xls and .xlsx files.
+     + rvest,      for web scraping.
+     + xml2,       for XML.
+     
+## tidyverse package(Other packages)   
+* **Data manipulation**
+     + hms,        for times.
+     + stringr,    for strings.
+     + lubridate,  for date/times.
+     + forcats,    for factors. 
+* **Modelling**
+     + modelr,     for simple modelling within a pipeline
+     + broom,      for turning models into tidy data     
+
+## Data Manipulation(dplyr)
+* **select()**: Select variables by name
+* **filter()**: Return all the rows that satisfy a following condition
+* **slice()**:  Select rows by position
+* **mutate()**: Add new variables to the data
+* **summarise()**: Summary
+* **group_by()**: Group data by one or more variables
+* **arrange()**: Sort a variable in decending order
+
+```{r , eval=FALSE, include=FALSE}
+## select
+select(iris, starts_with("Petal"))  %>% head(3)
+select(iris, matches(".t.")) %>% head(3)
+
+##filter
+filter(mtcars, cyl == 8)
+
+## slice
+slice(mtcars, 1L)
+slice(mtcars, n())
+slice(mtcars, 5:n())
+
+```
+
+```{r , eval=FALSE, include=FALSE}
+## mutate
+mtcars %>% head(5)
+mutate(mtcars, displ_l = disp / 61.0237) %>% head(5)
+##summarise
+mtcars %>% summarise(., mean(disp))
+## group_by
+mtcars %>% 
+  group_by(cyl) %>% 
+  summarise(., mean(disp))
+## arrange
+arrange(mtcars, cyl, disp) %>% head(5)
+mtcars %>% head(5)
+
+```
+
+
+## Data Tidying (tidyr)
+* Transforming data into a clear and simple form that makes it easy to work with
+* Easy to work with dplyr
+
+* Main tools 
+     + **gather()**   : converts wide data to longer format (reshape2::melt)
+     + **spread()**   : converts long data to wider format (reshape2::cast)
+     + **separate()** : tease apart variables that clumped together in one column 
+     + **drop_na()**  : drops rows containing missing values
+     + **complete()** : turn implicit missing values into explicit missing values.
+
+```{r , eval=FALSE, include=FALSE}
+## gather()
+messy <- data.frame(
+  name = c("Wilbur", "Petunia", "Gregory"),
+  a = c(67, 80, 64),
+  b = c(56, 90, 50)
+) %T>% print
+messy %>%
+  gather(drug, heartrate, a:b)
+
+##spread()
+messy %>%
+  gather(drug, heartrate, a:b) %>% spread(drug, heartrate)
+```
+
+```{r , eval=FALSE, include=FALSE}
+## separate()
+messy <- data.frame(
+  id = 1:4,
+  trt = sample(rep(c('control', 'treatment'), each = 2)),
+  work.T1 = runif(4),
+  home.T1 = runif(4),
+  work.T2 = runif(4),
+  home.T2 = runif(4)
+) %>% gather(key, time, -id, -trt) %T>% print
+
+messy %>%
+  separate(key, into = c("location", "time"), sep = "\\.") %>% head(8)
+```
+
+```{r , eval=FALSE, include=FALSE}
+## drop_na()
+df <- data_frame(x = c(1, 2, NA), y = c("a", NA, "b")) %T>% print 
+df %>% drop_na()
+df %>% drop_na(x)
+
+## complete()
+df <- data_frame(
+  group = c(1:2, 1),
+  item_id = c(1:2, 2),
+  item_name = c("a", "b", "b"),
+  value1 = 1:3,
+  value2 = 4:6
+) %T>% print 
+df %>% complete(group, nesting(item_id, item_name)) 
+
+```
+
+
+## Data Import(readr)
+* Faster
+
+* Main tools 
+     + **Delimited files** : read_delim(), read_csv(), read_tsv(), read_csv2()
+     + **Fixed width files** : d_fwf(), and read_table()
+     + **Web log files** :read_log()
+
+* Other data import package in tidyverse 
+     + readxl for excel; 
+     + haven for SAS, SPSS and Stata 
+            + problem 
+
+## Functional Programming (purrr)
+* **map()**
+
+```{r, echo=TRUE}
+# example 
+mtcars %>% 
+  split(.$cyl) %>%
+  map(~lm(mpg ~ wt, data = .)) %>%
+  map(summary) %>%
+  map_dbl("r.squared")
+```
+
+## Functional Programming (purrr)
+
+* **map()** return a list 
+* **map_lgl()**, **map_chr()**, **map_dbl()**, and **map_int()** return an atomic vector
+* **map_if()** only applies .f to those elements of the list where .p is true.     
+
+```{r, echo=TRUE}
+#.p == is.factor  ;   #.f == as.character ;
+iris  %>% map_if(is.factor, as.character) %>% str()
+```
+
+## Example
+
+```{r, eval= FALSE, echo=TRUE}
+#After Using Pipe
+model <- D %>% 
+           filter(.$V2 %in% c(0,1), complete.cases(.$V1)) %>% 
+           split(list(.$v2, .$v1)) %>% 
+           map(~JS.uni(D = .,'scensor','surv', 'g65','T and M' ))%>%
+           do.call(rbind,.)
+```
+
+###Contact 
+* Sophia Jia
+* jiax@ccf.org
+     
+     
+
 
